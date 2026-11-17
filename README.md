@@ -9,7 +9,12 @@ Use **Alternar layout** no menu para mudar entre os temas moderno (escuro) e sof
 ## Configuração do Supabase
 
 1. Crie um projeto no [Supabase](https://supabase.com/).
-2. No **SQL Editor**, execute o conteúdo de [`supabase/schema.sql`](./supabase/schema.sql). Isso cria a tabela de projetos, as políticas de acesso e o bucket público de imagens.
+2. No **SQL Editor**, execute o conteúdo de [`supabase/schema.sql`](./supabase/schema.sql). Isso cria a tabela de projetos, as políticas de acesso e o bucket público de imagens. Se o banco já estiver configurado, execute esta migração para adicionar a coluna da galeria:
+
+   ```sql
+   alter table public.projects
+     add column if not exists image_urls text[] not null default '{}';
+   ```
 3. Na raiz do projeto, abra `.env` e preencha as variáveis:
 
    ```dotenv
@@ -48,4 +53,4 @@ O arquivo [`vercel.json`](./vercel.json) configura o comando `npm run build` e a
 
 ## Projetos
 
-O painel permite adicionar e editar nome, resumo, tecnologias, imagem, link do GitHub e demonstração publicada, além de destacar projetos. Os dados ficam no Supabase e são compartilhados com os visitantes. As imagens podem ser enviadas para o bucket configurado ou apontar para uma URL pública.
+O painel permite adicionar e editar nome, resumo, tecnologias, imagens, link do GitHub e demonstração publicada, além de destacar projetos. Os dados ficam no Supabase e são compartilhados com os visitantes. Envie várias imagens de uma vez ou informe URLs públicas (uma por linha); a galeria exibe um carrossel automático com controles e ajusta as imagens para caber no espaço disponível.

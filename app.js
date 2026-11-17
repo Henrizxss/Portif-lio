@@ -23,7 +23,7 @@ const fields = {
   title: document.querySelector("#project-name"),
   summary: document.querySelector("#project-summary"),
   stack: document.querySelector("#project-stack"),
-  imageUrl: document.querySelector("#project-image"),
+  imageUrls: document.querySelector("#project-image"),
   imageFile: document.querySelector("#project-image-file"),
   github: document.querySelector("#project-github"),
   demo: document.querySelector("#project-demo"),
@@ -175,12 +175,79 @@ function createProjectCard(project) {
   const card = makeElement("article", `project-card${project.featured ? " project-featured" : ""}`);
   card.dataset.reveal = "";
   const image = makeElement("div", "project-image");
-  if (project.image_url && safeLink(project.image_url)) {
-    const img = document.createElement("img");
-    img.src = project.image_url;
-    img.alt = `Imagem do projeto ${project.title}`;
-    img.loading = "lazy";
-    image.append(img);
+  image.setAttribute("role", "region");
+  image.setAttribute("aria-label", `Imagens do projeto ${project.title}`);
+  image.setAttribute("aria-roledescription", "carrossel");
+  const savedImages = Array.isArray(project.image_urls) && project.image_urls.length
+    ? project.image_urls
+    : [project.image_url];
+  const imageUrls = [...new Set(savedImages.map(safeLink).filter(Boolean))];
+
+  if (imageUrls.length) {
+    const slides = imageUrls.map((url, index) => {
+      const img = document.createElement("img");
+      img.className = `project-slide${index === 0 ? " is-active" : ""}`;
+      img.src = url;
+      img.alt = `Imagem ${index + 1} do projeto ${project.title}`;
+      img.loading = index === 0 ? "eager" : "lazy";
+      img.setAttribute("aria-hidden", String(index !== 0));
+      image.append(img);
+      return img;
+    });
+
+    if (slides.length > 1) {
+      const controls = makeElement("div", "carousel-controls");
+      const indicators = makeElement("div", "carousel-indicators");
+      let activeIndex = 0;
+      let timer;
+
+      const showSlide = (index) => {
+        activeIndex = (index + slides.length) % slides.length;
+        slides.forEach((slide, slideIndex) => {
+          const isActive = slideIndex === activeIndex;
+          slide.classList.toggle("is-active", isActive);
+          slide.setAttribute("aria-hidden", String(!isActive));
+          indicators.children[slideIndex].setAttribute("aria-pressed", String(isActive));
+        });
+      };
+      const stopAutoplay = () => {
+        window.clearInterval(timer);
+        timer = undefined;
+      };
+      const startAutoplay = () => {
+        if (!timer && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          timer = window.setInterval(() => showSlide(activeIndex + 1), 4500);
+        }
+      };
+
+      const previous = makeElement("button", "carousel-arrow", "‹");
+      previous.type = "button";
+      previous.setAttribute("aria-label", "Imagem anterior");
+      previous.addEventListener("click", () => showSlide(activeIndex - 1));
+      controls.append(previous);
+
+      for (let index = 0; index < slides.length; index += 1) {
+        const indicator = makeElement("button", "carousel-indicator");
+        indicator.type = "button";
+        indicator.setAttribute("aria-label", `Mostrar imagem ${index + 1} de ${slides.length}`);
+        indicator.setAttribute("aria-pressed", String(index === 0));
+        indicator.addEventListener("click", () => showSlide(index));
+        indicators.append(indicator);
+      }
+      controls.append(indicators);
+
+      const next = makeElement("button", "carousel-arrow", "›");
+      next.type = "button";
+      next.setAttribute("aria-label", "Próxima imagem");
+      next.addEventListener("click", () => showSlide(activeIndex + 1));
+      controls.append(next);
+      image.append(controls);
+      image.addEventListener("pointerenter", stopAutoplay);
+      image.addEventListener("pointerleave", startAutoplay);
+      image.addEventListener("focusin", stopAutoplay);
+      image.addEventListener("focusout", startAutoplay);
+      startAutoplay();
+    }
   } else {
     image.append(makeElement("span", "project-image-mark", "H."));
   }
@@ -302,7 +369,10 @@ function beginEdit(project) {
   fields.title.value = project.title;
   fields.summary.value = project.summary;
   fields.stack.value = (project.stack || []).join(", ");
-  fields.imageUrl.value = project.image_url || "";
+  const imageUrls = Array.isArray(project.image_urls) && project.image_urls.length
+    ? project.image_urls
+    : [project.image_url].filter(Boolean);
+  fields.imageUrls.value = imageUrls.join("\n");
   fields.github.value = project.github_url || "";
   fields.demo.value = project.demo_url || "";
   fields.featured.checked = project.featured;
@@ -321,7 +391,6 @@ function validateOptionalUrl(value, label) {
 }
 
 async function uploadImage(file) {
-  if (!file) return null;
   if (!file.type.startsWith("image/")) throw new Error("Escolha um arquivo de imagem.");
   if (file.size > 5 * 1024 * 1024) throw new Error("A imagem deve ter no máximo 5 MB.");
 
@@ -333,10 +402,18 @@ async function uploadImage(file) {
   return data.publicUrl;
 }
 
+function getImageUrls() {
+  return fields.imageUrls.value.split(/\r?\n/).map((url) => url.trim()).filter(Boolean);
+}
+
 async function saveProject(event) {
   event.preventDefault();
   setMessage(projectMessage, "");
-  if (!validateOptionalUrl(fields.imageUrl.value, "a imagem")) return;
+  const imageUrls = getImageUrls();
+  if (!imageUrls.every((url) => safeLink(url))) {
+    setMessage(projectMessage, "Informe uma URL válida para cada imagem (http ou https), uma por linha.");
+    return;
+  }
   if (!validateOptionalUrl(fields.github.value, "o GitHub")) return;
   if (!validateOptionalUrl(fields.demo.value, "o projeto publicado")) return;
   if (!supabase) {
@@ -347,12 +424,16 @@ async function saveProject(event) {
   const submitButton = document.querySelector("#save-project");
   submitButton.disabled = true;
   try {
-    const uploadedImage = await uploadImage(fields.imageFile.files[0]);
+    const uploadedImages = await Promise.all(
+      Array.from(fields.imageFile.files, (file) => uploadImage(file)),
+    );
+    const projectImages = [...new Set([...imageUrls, ...uploadedImages])];
     const project = {
       title: fields.title.value.trim(),
       summary: fields.summary.value.trim(),
       stack: fields.stack.value.split(",").map((item) => item.trim()).filter(Boolean),
-      image_url: uploadedImage || fields.imageUrl.value.trim() || null,
+      image_urls: projectImages,
+      image_url: projectImages[0] || null,
       github_url: fields.github.value.trim() || null,
       demo_url: fields.demo.value.trim() || null,
       featured: fields.featured.checked,

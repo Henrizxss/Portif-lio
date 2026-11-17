@@ -19,6 +19,9 @@ create table if not exists public.projects (
   updated_at timestamptz not null default now()
 );
 
+alter table public.projects
+  add column if not exists image_urls text[] not null default '{}';
+
 alter table public.admin_users enable row level security;
 alter table public.projects enable row level security;
 
