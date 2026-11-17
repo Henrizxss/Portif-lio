@@ -1,5 +1,5 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { supabaseAnonKey, supabaseUrl } from "./config.js";
+import { createClient } from "@supabase/supabase-js";
+import { supabasePublishableKey, supabaseUrl } from "./config.js";
 
 const projectGrid = document.querySelector("#project-grid");
 const projectStatus = document.querySelector("#project-status");
@@ -10,10 +10,13 @@ const projectForm = document.querySelector("#project-form");
 const managedProjects = document.querySelector("#managed-projects");
 const loginMessage = document.querySelector("#login-message");
 const projectMessage = document.querySelector("#project-message");
+const layoutToggle = document.querySelector("#layout-toggle");
 let revealObserver;
 
 const supabase =
-  supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
+  supabaseUrl && supabasePublishableKey
+    ? createClient(supabaseUrl, supabasePublishableKey)
+    : null;
 
 const fields = {
   id: document.querySelector("#project-id"),
@@ -114,7 +117,59 @@ function setupMotion() {
   if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
     document.querySelectorAll(".hero-art, .project-card").forEach(trackPointer);
   }
+
+  const roleWord = document.querySelector(".role-word");
+  if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches && roleWord) {
+    const roles = [
+      "experiências digitais",
+      "aplicações web e mobile",
+      "soluções de ponta a ponta",
+    ];
+    let activeRole = 0;
+    window.setInterval(() => {
+      roleWord.classList.add("is-switching");
+      window.setTimeout(() => {
+        activeRole = (activeRole + 1) % roles.length;
+        roleWord.textContent = roles[activeRole];
+        roleWord.classList.remove("is-switching");
+      }, 220);
+    }, 3800);
+  }
 }
+
+function setLayout(theme, persist = true) {
+  const isSoft = theme === "soft";
+  document.body.dataset.theme = isSoft ? "soft" : "modern";
+  layoutToggle.setAttribute("aria-pressed", String(isSoft));
+  layoutToggle.setAttribute(
+    "aria-label",
+    `Alternar layout. Atual: ${isSoft ? "soft" : "moderno"}`,
+  );
+  layoutToggle.title = `Alternar para o layout ${isSoft ? "moderno" : "soft"}`;
+  layoutToggle.querySelector(".layout-toggle-icon").textContent = isSoft ? "☼" : "◐";
+  document.querySelector('meta[name="theme-color"]').content = isSoft ? "#f5f4ef" : "#0b1020";
+
+  if (persist) {
+    try {
+      window.localStorage.setItem("portfolio-layout", isSoft ? "soft" : "modern");
+    } catch (error) {
+      console.error("Não foi possível guardar a preferência de layout:", error);
+    }
+  }
+}
+
+try {
+  const savedTheme = window.localStorage.getItem("portfolio-layout");
+  if (savedTheme === "soft" || savedTheme === "modern") setLayout(savedTheme, false);
+} catch (error) {
+  console.error("Não foi possível recuperar a preferência de layout:", error);
+}
+
+layoutToggle.addEventListener("click", () => {
+  setLayout(document.body.dataset.theme === "modern" ? "soft" : "modern");
+  menuToggle.setAttribute("aria-expanded", "false");
+  primaryNav.classList.remove("nav-open");
+});
 
 function createProjectCard(project) {
   const card = makeElement("article", `project-card${project.featured ? " project-featured" : ""}`);
@@ -455,4 +510,8 @@ primaryNav.querySelectorAll("a").forEach((link) => {
 });
 
 setupMotion();
-await loadProjects();
+loadProjects().catch((error) => {
+  console.error("Não foi possível carregar os projetos:", error);
+  projectStatus.hidden = false;
+  projectStatus.textContent = "Não foi possível carregar os projetos. Tente novamente mais tarde.";
+});
