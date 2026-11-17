@@ -22,7 +22,7 @@
     <div class="scroll-progress" aria-hidden="true"><span></span></div>
     <header class="site-header">
       <a class="brand" href="#inicio" aria-label="Henri Alves, início">
-        <span class="brand-mark">H<span>.</span></span>
+        <span class="brand-mark"><img src="/profile.jpg" alt="" /></span>
         <span>Henri Alves</span>
       </a>
       <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="primary-nav">
@@ -286,10 +286,15 @@
     </main>
 
     <footer class="site-footer">
-      <a class="brand" href="#inicio"><span class="brand-mark">H<span>.</span></span><span>Henri Alves</span></a>
+      <a class="brand" href="#inicio"><span class="brand-mark"><img src="/profile.jpg" alt="" /></span><span>Henri Alves</span></a>
       <p>Feito com intenção, café e algumas linhas de código.</p>
       <a class="back-top" href="#inicio">VOLTAR AO TOPO ↑</a>
     </footer>
+
+    <dialog class="image-viewer" id="image-viewer" aria-label="Imagem ampliada do projeto">
+      <button class="image-viewer-close" id="close-image-viewer" type="button" aria-label="Fechar imagem ampliada">×</button>
+      <img alt="" />
+    </dialog>
 
     <dialog class="admin-dialog" id="admin-dialog" aria-labelledby="admin-title">
       <div class="admin-shell">

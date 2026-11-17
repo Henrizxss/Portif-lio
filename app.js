@@ -4,6 +4,8 @@ import { supabasePublishableKey, supabaseUrl } from "./config.js";
 const projectGrid = document.querySelector("#project-grid");
 const projectStatus = document.querySelector("#project-status");
 const dialog = document.querySelector("#admin-dialog");
+const imageViewer = document.querySelector("#image-viewer");
+const imageViewerImage = imageViewer.querySelector("img");
 const loginForm = document.querySelector("#login-form");
 const manager = document.querySelector("#project-manager");
 const projectForm = document.querySelector("#project-form");
@@ -191,6 +193,24 @@ function createProjectCard(project) {
       img.alt = `Imagem ${index + 1} do projeto ${project.title}`;
       img.loading = index === 0 ? "eager" : "lazy";
       img.setAttribute("aria-hidden", String(index !== 0));
+      img.setAttribute("role", "button");
+      img.setAttribute("aria-label", `Ampliar imagem ${index + 1} do projeto ${project.title}`);
+      img.tabIndex = index === 0 ? 0 : -1;
+      img.addEventListener("click", () => {
+        if (img.classList.contains("is-active")) {
+          imageViewerImage.src = img.src;
+          imageViewerImage.alt = img.alt;
+          imageViewer.showModal();
+        }
+      });
+      img.addEventListener("keydown", (event) => {
+        if (img.classList.contains("is-active") && (event.key === "Enter" || event.key === " ")) {
+          event.preventDefault();
+          imageViewerImage.src = img.src;
+          imageViewerImage.alt = img.alt;
+          imageViewer.showModal();
+        }
+      });
       image.append(img);
       return img;
     });
@@ -207,6 +227,7 @@ function createProjectCard(project) {
           const isActive = slideIndex === activeIndex;
           slide.classList.toggle("is-active", isActive);
           slide.setAttribute("aria-hidden", String(!isActive));
+          slide.tabIndex = isActive ? 0 : -1;
           indicators.children[slideIndex].setAttribute("aria-pressed", String(isActive));
         });
       };
@@ -539,6 +560,10 @@ document.querySelector("#open-admin").addEventListener("click", async () => {
 document.querySelector("#close-admin").addEventListener("click", () => dialog.close());
 dialog.addEventListener("click", (event) => {
   if (event.target === dialog) dialog.close();
+});
+document.querySelector("#close-image-viewer").addEventListener("click", () => imageViewer.close());
+imageViewer.addEventListener("click", (event) => {
+  if (event.target === imageViewer) imageViewer.close();
 });
 
 loginForm.addEventListener("submit", async (event) => {
