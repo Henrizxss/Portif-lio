@@ -6,39 +6,30 @@ import {
   passwordMatches,
   sessionCookie,
 } from "./_lib/auth.js";
+import { readJsonBody, sendJson } from "./_lib/http.js";
 
-function json(body, status = 200, headers = {}) {
-  return Response.json(body, {
-    status,
-    headers: { "Cache-Control": "no-store", ...headers },
-  });
-}
-
-export default async function handler(request) {
+export default async function handler(request, response) {
   try {
     if (request.method === "GET") {
-      return json({ authenticated: hasValidSession(request) });
+      return sendJson(response, { authenticated: hasValidSession(request) });
     }
 
-    if (!hasTrustedOrigin(request)) return json({ error: "Origem não permitida." }, 403);
+    if (!hasTrustedOrigin(request)) {
+      return sendJson(response, { error: "Origem não permitida." }, 403);
+    }
 
     if (request.method === "POST") {
-      let body;
-      try {
-        body = await request.json();
-      } catch {
-        return json({ error: "Envie uma requisição JSON válida." }, 400);
-      }
-
+      const body = readJsonBody(request);
       if (!body || typeof body !== "object" || Array.isArray(body)) {
-        return json({ error: "Envie uma requisição JSON válida." }, 400);
+        return sendJson(response, { error: "Envie uma requisição JSON válida." }, 400);
       }
       if (!passwordMatches(body.password)) {
-        return json({ error: "Senha incorreta." }, 401);
+        return sendJson(response, { error: "Senha incorreta." }, 401);
       }
 
       const token = createSessionToken();
-      return json(
+      return sendJson(
+        response,
         { authenticated: true },
         200,
         { "Set-Cookie": sessionCookie(request, token) },
@@ -46,16 +37,22 @@ export default async function handler(request) {
     }
 
     if (request.method === "DELETE") {
-      return json(
+      return sendJson(
+        response,
         { authenticated: false },
         200,
         { "Set-Cookie": clearedSessionCookie(request) },
       );
     }
 
-    return json({ error: "Método não permitido." }, 405, { Allow: "GET, POST, DELETE" });
+    return sendJson(
+      response,
+      { error: "Método não permitido." },
+      405,
+      { Allow: "GET, POST, DELETE" },
+    );
   } catch (error) {
     console.error("Falha na API de autenticação:", error);
-    return json({ error: "Não foi possível processar a autenticação." }, 500);
+    return sendJson(response, { error: "Não foi possível processar a autenticação." }, 500);
   }
 }

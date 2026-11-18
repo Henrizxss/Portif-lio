@@ -1,17 +1,21 @@
 import { handleUpload } from "@vercel/blob/client";
 import { hasTrustedOrigin, hasValidSession } from "./_lib/auth.js";
+import { readJsonBody, sendJson } from "./_lib/http.js";
 
-export default async function handler(request) {
+export default async function handler(request, response) {
   try {
     if (request.method !== "POST") {
-      return Response.json(
+      return sendJson(
+        response,
         { error: "Método não permitido." },
-        { status: 405, headers: { Allow: "POST" } },
+        405,
+        { Allow: "POST" },
       );
     }
 
-    const body = await request.json();
-    const response = await handleUpload({
+    const body = readJsonBody(request);
+    if (!body) return sendJson(response, { error: "Envie uma requisição JSON válida." }, 400);
+    const result = await handleUpload({
       body,
       request,
       onBeforeGenerateToken: async (pathname) => {
@@ -29,12 +33,13 @@ export default async function handler(request) {
         };
       },
     });
-    return Response.json(response, { headers: { "Cache-Control": "no-store" } });
+    return sendJson(response, result, 200);
   } catch (error) {
     console.error("Falha no upload de imagem:", error);
-    return Response.json(
+    return sendJson(
+      response,
       { error: "Não foi possível enviar a imagem. Verifique a sessão e o arquivo." },
-      { status: 400, headers: { "Cache-Control": "no-store" } },
+      400,
     );
   }
 }

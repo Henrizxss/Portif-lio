@@ -9,6 +9,36 @@ const originalPassword = process.env.ADMIN_PASSWORD;
 process.env.SESSION_SECRET = "test-session-secret-with-at-least-32-characters";
 process.env.ADMIN_PASSWORD = "test-password-with-at-least-16-chars";
 
+function makeRequest(method, url, headers = {}, body) {
+  return {
+    method,
+    url,
+    headers: { host: "example.test", ...headers },
+    body,
+  };
+}
+
+function makeResponse() {
+  return {
+    headers: {},
+    statusCode: 0,
+    body: "",
+    setHeader(name, value) {
+      this.headers[name] = value;
+    },
+    end(body) {
+      this.body = body;
+    },
+  };
+}
+
+async function callHandler(handler, method, url, headers = {}, body) {
+  const request = makeRequest(method, url, headers, body);
+  const response = makeResponse();
+  await handler(request, response);
+  return response;
+}
+
 test("valid session tokens expire and reject tampering", () => {
   const now = 1_800_000_000_000;
   const token = createSessionToken(now);
@@ -29,49 +59,31 @@ test("admin password comparison accepts only the configured password", () => {
 });
 
 test("auth endpoint issues and clears an origin-bound session", async () => {
-  const login = await authHandler(new Request("https://example.test/api/auth", {
-    method: "POST",
-    headers: {
-      origin: "https://example.test",
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({ password: "test-password-with-at-least-16-chars" }),
-  }));
-  assert.equal(login.status, 200);
-  const cookie = login.headers.get("set-cookie").split(";")[0];
+  const login = await callHandler(authHandler, "POST", "/api/auth", {
+    origin: "https://example.test",
+  }, { password: "test-password-with-at-least-16-chars" });
+  assert.equal(login.statusCode, 200);
+  const cookie = login.headers["Set-Cookie"].split(";")[0];
 
-  const session = await authHandler(new Request("https://example.test/api/auth", {
-    headers: { cookie },
-  }));
-  assert.deepEqual(await session.json(), { authenticated: true });
+  const session = await callHandler(authHandler, "GET", "/api/auth", { cookie });
+  assert.deepEqual(JSON.parse(session.body), { authenticated: true });
 
-  const logout = await authHandler(new Request("https://example.test/api/auth", {
-    method: "DELETE",
-    headers: { origin: "https://example.test" },
-  }));
-  assert.match(logout.headers.get("set-cookie"), /Max-Age=0/);
+  const logout = await callHandler(authHandler, "DELETE", "/api/auth", {
+    origin: "https://example.test",
+  });
+  assert.match(logout.headers["Set-Cookie"], /Max-Age=0/);
 
-  const denied = await authHandler(new Request("https://example.test/api/auth", {
-    method: "POST",
-    headers: {
-      origin: "https://attacker.test",
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({ password: "test-password-with-at-least-16-chars" }),
-  }));
-  assert.equal(denied.status, 403);
+  const denied = await callHandler(authHandler, "POST", "/api/auth", {
+    origin: "https://attacker.test",
+  }, { password: "test-password-with-at-least-16-chars" });
+  assert.equal(denied.statusCode, 403);
 });
 
 test("project mutations reject requests without an admin session", async () => {
-  const response = await projectsHandler(new Request("https://example.test/api/projects", {
-    method: "POST",
-    headers: {
-      origin: "https://example.test",
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({}),
-  }));
-  assert.equal(response.status, 401);
+  const response = await callHandler(projectsHandler, "POST", "/api/projects", {
+    origin: "https://example.test",
+  }, {});
+  assert.equal(response.statusCode, 401);
 });
 
 test.after(() => {
