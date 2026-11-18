@@ -1,5 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
-import { supabasePublishableKey, supabaseUrl } from "./config.js";
+import { upload } from "@vercel/blob/client";
 
 const projectGrid = document.querySelector("#project-grid");
 const projectStatus = document.querySelector("#project-status");
@@ -15,10 +14,19 @@ const projectMessage = document.querySelector("#project-message");
 const layoutToggle = document.querySelector("#layout-toggle");
 let revealObserver;
 
-const supabase =
-  supabaseUrl && supabasePublishableKey
-    ? createClient(supabaseUrl, supabasePublishableKey)
-    : null;
+async function apiRequest(path, options = {}) {
+  const response = await fetch(path, {
+    credentials: "same-origin",
+    ...options,
+    headers: {
+      ...(options.body ? { "Content-Type": "application/json" } : {}),
+      ...options.headers,
+    },
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || `Erro HTTP ${response.status}.`);
+  return data;
+}
 
 const fields = {
   id: document.querySelector("#project-id"),
@@ -360,28 +368,9 @@ function renderProjects(projects) {
 }
 
 async function loadProjects() {
-  if (!supabase) {
-    projectStatus.hidden = false;
-    projectStatus.textContent =
-      "A galeria será carregada quando a conexão com o Supabase estiver configurada.";
-    return;
-  }
-
-  const { data, error } = await supabase
-    .from("projects")
-    .select("*")
-    .order("featured", { ascending: false })
-    .order("display_order", { ascending: true })
-    .order("created_at", { ascending: false });
-  if (error) {
-    console.error("Não foi possível carregar os projetos:", error);
-    projectStatus.hidden = false;
-    projectStatus.textContent = "Não foi possível carregar os projetos. Tente novamente mais tarde.";
-    return;
-  }
-
+  const projects = await apiRequest("/api/projects");
   projectStatus.hidden = true;
-  renderProjects(data);
+  renderProjects(projects);
 }
 
 function resetProjectForm() {
@@ -420,15 +409,18 @@ function validateOptionalUrl(value, label) {
 }
 
 async function uploadImage(file) {
-  if (!file.type.startsWith("image/")) throw new Error("Escolha um arquivo de imagem.");
+  if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)) {
+    throw new Error("Use uma imagem JPG, PNG, WebP ou GIF.");
+  }
   if (file.size > 5 * 1024 * 1024) throw new Error("A imagem deve ter no máximo 5 MB.");
 
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
   const path = `${crypto.randomUUID()}-${safeName}`;
-  const { error } = await supabase.storage.from("portfolio-images").upload(path, file);
-  if (error) throw error;
-  const { data } = supabase.storage.from("portfolio-images").getPublicUrl(path);
-  return data.publicUrl;
+  const blob = await upload(`projects/${path}`, file, {
+    access: "public",
+    handleUploadUrl: "/api/upload",
+  });
+  return blob.url;
 }
 
 function getImageUrls() {
@@ -445,10 +437,6 @@ async function saveProject(event) {
   }
   if (!validateOptionalUrl(fields.github.value, "o GitHub")) return;
   if (!validateOptionalUrl(fields.demo.value, "o projeto publicado")) return;
-  if (!supabase) {
-    setMessage(projectMessage, "Configure a conexão com o Supabase antes de salvar.");
-    return;
-  }
 
   const submitButton = document.querySelector("#save-project");
   submitButton.disabled = true;
@@ -468,13 +456,17 @@ async function saveProject(event) {
       featured: fields.featured.checked,
     };
 
-    let result;
     if (fields.id.value) {
-      result = await supabase.from("projects").update(project).eq("id", fields.id.value);
+      await apiRequest(`/api/projects?id=${encodeURIComponent(fields.id.value)}`, {
+        method: "PATCH",
+        body: JSON.stringify(project),
+      });
     } else {
-      result = await supabase.from("projects").insert(project);
+      await apiRequest("/api/projects", {
+        method: "POST",
+        body: JSON.stringify(project),
+      });
     }
-    if (result.error) throw result.error;
     resetProjectForm();
     setMessage(projectMessage, "Projeto salvo e publicado com sucesso.", false);
     await loadProjects();
@@ -488,23 +480,17 @@ async function saveProject(event) {
 }
 
 async function loadManagerProjects() {
-  const { data, error } = await supabase
-    .from("projects")
-    .select("*")
-    .order("display_order", { ascending: true })
-    .order("created_at", { ascending: false });
-  if (error) {
-    console.error("Não foi possível carregar a lista de projetos:", error);
-    setMessage(projectMessage, "Não foi possível carregar sua lista de projetos.");
-    return;
-  }
-  managedProjects.replaceChildren(...data.map(createManagedProject));
+  const projects = await apiRequest("/api/projects");
+  managedProjects.replaceChildren(...projects.map(createManagedProject));
 }
 
 async function deleteProject(project) {
   if (!window.confirm(`Excluir o projeto “${project.title}”?`)) return;
-  const { error } = await supabase.from("projects").delete().eq("id", project.id);
-  if (error) {
+  try {
+    await apiRequest(`/api/projects?id=${encodeURIComponent(project.id)}`, {
+      method: "DELETE",
+    });
+  } catch (error) {
     console.error("Não foi possível excluir o projeto:", error);
     setMessage(projectMessage, `Não foi possível excluir o projeto: ${error.message}`);
     return;
@@ -515,53 +501,37 @@ async function deleteProject(project) {
   await loadManagerProjects();
 }
 
-async function updateAuthState(session) {
-  if (!session) {
+async function updateAuthState(authenticated) {
+  if (!authenticated) {
     loginForm.hidden = false;
     manager.hidden = true;
     resetProjectForm();
     return;
   }
 
-  const { data: admin, error } = await supabase
-    .from("admin_users")
-    .select("user_id")
-    .eq("user_id", session.user.id)
-    .maybeSingle();
-  if (error) {
-    console.error("Não foi possível verificar o acesso administrativo:", error);
-    await supabase.auth.signOut();
-    loginForm.hidden = false;
-    manager.hidden = true;
-    setMessage(loginMessage, "Não foi possível verificar seu acesso. Confira a configuração do Supabase.");
+  loginForm.hidden = false;
+  manager.hidden = true;
+  try {
+    await loadManagerProjects();
+  } catch (error) {
+    console.error("Não foi possível carregar a lista de projetos:", error);
+    setMessage(projectMessage, "A sessão foi iniciada, mas não foi possível carregar os projetos.");
+    loginForm.hidden = true;
+    manager.hidden = false;
     return;
   }
-  if (!admin) {
-    await supabase.auth.signOut();
-    loginForm.hidden = false;
-    manager.hidden = true;
-    setMessage(loginMessage, "Esta conta não tem permissão para gerenciar o portfólio.");
-    return;
-  }
-
   loginForm.hidden = true;
   manager.hidden = false;
-  await loadManagerProjects();
 }
 
 document.querySelector("#open-admin").addEventListener("click", async () => {
-  if (!supabase) {
-    setMessage(loginMessage, "A conexão com o Supabase ainda não foi configurada.");
-  }
   if (!dialog.open) dialog.showModal();
-  if (supabase) {
-    const { data, error } = await supabase.auth.getSession();
-    if (error) {
-      console.error("Não foi possível verificar a sessão:", error);
-      setMessage(loginMessage, "Não foi possível verificar sua sessão. Tente novamente.");
-    } else {
-      await updateAuthState(data.session);
-    }
+  try {
+    const { authenticated } = await apiRequest("/api/auth");
+    await updateAuthState(authenticated);
+  } catch (error) {
+    console.error("Não foi possível verificar a sessão:", error);
+    setMessage(loginMessage, "Não foi possível verificar sua sessão. Tente novamente.");
   }
 });
 
@@ -577,33 +547,30 @@ imageViewer.addEventListener("click", (event) => {
 loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   setMessage(loginMessage, "");
-  if (!supabase) {
-    setMessage(loginMessage, "Configure a conexão com o Supabase antes de entrar.");
-    return;
-  }
   const button = loginForm.querySelector('button[type="submit"]');
   button.disabled = true;
   const formData = new FormData(loginForm);
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: formData.get("email"),
-    password: formData.get("password"),
-  });
-  button.disabled = false;
-  if (error) {
-    setMessage(loginMessage, "Não foi possível entrar. Confira o e-mail e a senha.");
-    return;
+  try {
+    const { authenticated } = await apiRequest("/api/auth", {
+      method: "POST",
+      body: JSON.stringify({ password: formData.get("password") }),
+    });
+    await updateAuthState(authenticated);
+  } catch (error) {
+    setMessage(loginMessage, "Não foi possível entrar. Confira a senha e tente novamente.");
+  } finally {
+    button.disabled = false;
   }
-  await updateAuthState(data.session);
 });
 
 document.querySelector("#sign-out").addEventListener("click", async () => {
-  const { error } = await supabase.auth.signOut();
-  if (error) {
+  try {
+    await apiRequest("/api/auth", { method: "DELETE" });
+    await updateAuthState(false);
+  } catch (error) {
     console.error("Não foi possível encerrar a sessão:", error);
     setMessage(projectMessage, "Não foi possível sair. Tente novamente.");
-    return;
   }
-  await updateAuthState(null);
 });
 
 projectForm.addEventListener("submit", saveProject);

@@ -305,8 +305,6 @@
         </div>
         <form class="login-form" id="login-form">
           <p>Entre para gerenciar os projetos exibidos no portfólio.</p>
-          <label for="login-email">E-mail</label>
-          <input id="login-email" name="email" type="email" autocomplete="username" required />
           <label for="login-password">Senha</label>
           <input id="login-password" name="password" type="password" autocomplete="current-password" required />
           <button class="button button-dark" type="submit">Entrar <span>↗</span></button>
@@ -330,7 +328,7 @@
             <label for="project-image">Imagens do projeto <span>(uma URL por linha)</span></label>
             <textarea id="project-image" name="image_urls" rows="2" placeholder="https://..."></textarea>
             <label for="project-image-file">Enviar imagens <span>(até 5 MB cada)</span></label>
-            <input id="project-image-file" name="image_files" type="file" accept="image/*" multiple />
+            <input id="project-image-file" name="image_files" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple />
             <label for="project-github">Link do GitHub</label>
             <input id="project-github" name="github_url" type="url" placeholder="https://github.com/..." />
             <label for="project-demo">Link publicado</label>
