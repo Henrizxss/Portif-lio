@@ -150,9 +150,14 @@ function setLayout(theme, persist = true) {
   layoutToggle.title = `Alternar para o layout ${isSoft ? "moderno" : "soft"}`;
   layoutToggle.querySelector(".layout-toggle-icon").textContent = isSoft ? "☼" : "◐";
   document.querySelector('meta[name="theme-color"]').content = isSoft ? "#f5f4ef" : "#0b1020";
-  document.querySelector('link[rel="icon"]').href = isSoft
-    ? "/favicon-soft.svg"
-    : "/favicon-modern.svg";
+  const favicon = document.querySelector("#site-favicon");
+  const nextFavicon = document.createElement("link");
+  nextFavicon.id = "site-favicon";
+  nextFavicon.rel = "icon";
+  nextFavicon.type = "image/svg+xml";
+  nextFavicon.sizes = "any";
+  nextFavicon.href = isSoft ? "/favicon-soft.svg?v=2" : "/favicon-modern.svg?v=2";
+  favicon.replaceWith(nextFavicon);
 
   if (persist) {
     try {
