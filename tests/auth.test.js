@@ -3,6 +3,7 @@ import test from "node:test";
 import { createSessionToken, hasValidSession, passwordMatches } from "../api/_lib/auth.js";
 import authHandler from "../api/auth.js";
 import projectsHandler from "../api/projects.js";
+import { validateProject } from "../api/_lib/project-validation.js";
 
 const originalSecret = process.env.SESSION_SECRET;
 const originalPassword = process.env.ADMIN_PASSWORD;
@@ -84,6 +85,19 @@ test("project mutations reject requests without an admin session", async () => {
     origin: "https://example.test",
   }, {});
   assert.equal(response.statusCode, 401);
+});
+
+test("project validation accepts technology names longer than 40 characters", () => {
+  const validationError = validateProject({
+    title: "Projeto",
+    summary: "Resumo",
+    stack: ["Uma tecnologia com um nome maior do que quarenta caracteres"],
+    image_urls: [],
+    github_url: null,
+    demo_url: null,
+    featured: false,
+  });
+  assert.equal(validationError, null);
 });
 
 test.after(() => {
