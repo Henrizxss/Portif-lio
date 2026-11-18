@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="trace" x1="14" y1="50" x2="50" y2="14" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#416fd0"/>
+      <stop offset="1" stop-color="#42e4cc"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="18" y1="48" x2="47" y2="14" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2469b7"/>
+      <stop offset="1" stop-color="#36d6c6"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="12" fill="#0d1528"/>
+  <g fill="url(#panel)" fill-opacity=".26" stroke="url(#trace)" stroke-linejoin="round" stroke-width="1.5">
+    <path d="m18 22 8-8v16l-8 8z"/>
+    <path d="m18 40 8-8v16l-8 8z"/>
+    <path d="M39 14h8v16l-8 8z"/>
+    <path d="m39 40 8-8v16l-8 8z"/>
+  </g>
+  <path d="M22 32h20" fill="none" stroke="url(#trace)" stroke-linecap="round" stroke-width="5"/>
+  <path d="M23 32h18" fill="none" stroke="#a8fff0" stroke-linecap="round" stroke-opacity=".8" stroke-width="1"/>
+  <g fill="#83f4df">
+    <circle cx="22" cy="24" r="1.3"/>
+    <circle cx="22" cy="44" r="1.3"/>
+    <circle cx="43" cy="22" r="1.3"/>
+    <circle cx="43" cy="44" r="1.3"/>
+  </g>
+</svg>
